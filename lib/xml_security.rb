@@ -32,6 +32,7 @@ require "digest/sha1"
 module XMLSecurity
 
   class SignedDocument < REXML::Document
+    attr_accessor :skip_digest_check
 
     def validate (idp_cert_fingerprint, logger = nil)
       # get cert from response
@@ -56,18 +57,20 @@ module XMLSecurity
       sig_element.remove
 
       #check digests
-      REXML::XPath.each(sig_element, "//ds:Reference", {"ds"=>"http://www.w3.org/2000/09/xmldsig#"}) do | ref |
+      unless(@skip_digest_check == true)
+        REXML::XPath.each(sig_element, "//ds:Reference", {"ds"=>"http://www.w3.org/2000/09/xmldsig#"}) do | ref |
 
-        uri                   = ref.attributes.get_attribute("URI").value
-        hashed_element        = REXML::XPath.first(self, "//[@ID='#{uri[1,uri.size]}']")
-        canoner               = XML::Util::XmlCanonicalizer.new(false, true)
-        canon_hashed_element  = canoner.canonicalize(hashed_element)
-        hash                  = Base64.encode64(Digest::SHA1.digest(canon_hashed_element)).chomp
-        digest_value          = REXML::XPath.first(ref, "//ds:DigestValue", {"ds"=>"http://www.w3.org/2000/09/xmldsig#"}).text
+          uri                   = ref.attributes.get_attribute("URI").value
+          hashed_element        = REXML::XPath.first(self, "//[@ID='#{uri[1,uri.size]}']")
+          canoner               = XML::Util::XmlCanonicalizer.new(false, true)
+          canon_hashed_element  = canoner.canonicalize(hashed_element)
+          hash                  = Base64.encode64(Digest::SHA1.digest(canon_hashed_element)).chomp
+          digest_value          = REXML::XPath.first(ref, "//ds:DigestValue", {"ds"=>"http://www.w3.org/2000/09/xmldsig#"}).text
 
-        valid_flag            = hash == digest_value
+          valid_flag            = hash == digest_value
 
-        return valid_flag if !valid_flag
+          return valid_flag if !valid_flag
+        end
       end
 
       # verify signature
